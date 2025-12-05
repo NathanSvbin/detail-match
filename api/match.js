@@ -1,59 +1,110 @@
 // Fichier : api/match.js
-import Fotmob from "@max-xoo/fotmob";
+// Récupère les détails d'un match en utilisant votre propre classe Fotmob (avec gestion du header x-mas)
 
-// Initialisation (peut causer des problèmes si elle est faite ici. 
-// Laisser ici est généralement correct, mais nous allons ajouter des vérifications.)
-const fotmob = new Fotmob();
+import axios from "axios";
 
-export default async function handler(request, response) {
-  const matchId = request.query.id;
+class Fotmob {
+    constructor() {
+        this.cache = new Map();
+        this.xmas = undefined;
+        // Utilisez le chemin d'accès correct à l'API Fotmob
+        this.baseUrl = "https://www.fotmob.com/api/"; 
+        
+        this.axiosInstance = axios.create({
+            baseURL: this.baseUrl,
+            timeout: 10000,
+            headers: {
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0"
+            }
+        });
 
-  if (!matchId) {
-    return response.status(400).json({
-      success: false,
-      message: "Paramètre manquant. Veuillez fournir un ID de match dans l'URL (ex: ?id=4772687)."
-    });
-  }
-
-  // Vérification de la disponibilité de la librairie
-  if (!fotmob || typeof fotmob.getMatchDetails !== 'function') {
-      return response.status(500).json({
-          success: false,
-          message: "Erreur de configuration: La librairie Fotmob n'a pas été initialisée correctement."
-      });
-  }
-
-  try {
-    console.log(`Tentative de récupération des détails pour le match ID: ${matchId}`);
-    
-    // Tentative d'appel à l'API externe
-    const matchDetails = await fotmob.getMatchDetails(matchId);
-
-    if (!matchDetails || Object.keys(matchDetails).length === 0) {
-        return response.status(404).json({
-            success: false,
-            message: `Match non trouvé ou données vides pour l'ID: ${matchId}.`
+        // Intercepteur pour ajouter le header x-mas avant chaque requête
+        this.axiosInstance.interceptors.request.use(async (config) => {
+            // C'est votre logique de contournement du header x-mas
+            if (!this.xmas) {
+                await this.ensureInitialized();
+            }
+            config.headers["x-mas"] = this.xmas;
+            return config;
         });
     }
 
-    // Réponse réussie
-    response.status(200).json({
-      success: true,
-      matchId: matchId,
-      data: matchDetails,
-      source: "Fotmob API via Vercel Function"
-    });
+    async ensureInitialized() {
+        if (!this.xmas) {
+            // Appel à votre proxy pour obtenir le header x-mas
+            const response = await axios.get("http://46.101.91.154:6006/");
+            this.xmas = response.data["x-mas"];
+        }
+    }
 
-  } catch (error) {
-    // Si l'erreur se produit ici, c'est que l'appel API a échoué.
-    console.error(`Erreur critique lors de l'appel pour l'ID ${matchId}:`, error);
+    async safeTypeCastFetch(url) {
+        // Logique de cache
+        if (this.cache.has(url)) {
+            return JSON.parse(this.cache.get(url));
+        }
+        
+        const response = await this.axiosInstance.get(url);
+        this.cache.set(url, JSON.stringify(response.data));
+        return response.data;
+    }
 
-    // Retourner un message simple en cas d'erreur API externe pour éviter de crasher lors de la sérialisation
-    response.status(500).json({
-      success: false,
-      message: "Erreur lors de la récupération des données de l'API externe. Vérifiez si l'ID est valide ou si l'API est accessible.",
-      // Fournir le message d'erreur si disponible, mais pas l'objet complet 'error'
-      details: error.message || 'Erreur inconnue'
-    });
-  }
+    // NOUVELLE MÉTHODE : Récupère les détails d'un match
+    async getMatchDetails(id, timeZone = "Europe/London") {
+        // L'endpoint pour les détails de match est 'matchDetails?matchId='
+        const url = `matchDetails?matchId=${id}&timeZone=${timeZone}`; 
+        return await this.safeTypeCastFetch(url);
+    }
+    
+    // Ancien getTeam (inclus pour référence)
+    async getTeam(id, tab = "overview", type = "team", timeZone = "Europe/London") {
+        const url = `teams?id=${id}&tab=${tab}&type=${type}&timeZone=${timeZone}`;
+        return await this.safeTypeCastFetch(url);
+    }
+}
+
+// ---------------------------------------------------
+// HANDLER VERSION VERCEL 🌟
+// ---------------------------------------------------
+export default async function handler(req, res) {
+    // Le handler Vercel doit utiliser le nom 'req' pour la requête et 'res' pour la réponse.
+    const matchId = req.query.id;
+
+    if (!matchId) {
+        return res.status(400).json({ 
+            success: false,
+            message: "Paramètre manquant. Veuillez fournir un ID de match dans l'URL (ex: ?id=4772687)."
+        });
+    }
+
+    try {
+        // 1. Initialiser votre classe Fotmob personnalisée
+        const fotmob = new Fotmob();
+        
+        // 2. Appeler la nouvelle méthode getMatchDetails
+        const data = await fotmob.getMatchDetails(matchId);
+
+        // Gérer le cas où l'ID n'existe pas
+        if (!data || Object.keys(data).length === 0) {
+             return res.status(404).json({
+                success: false,
+                message: `Match non trouvé pour l'ID: ${matchId}.`
+            });
+        }
+        
+        return res.status(200).json({
+            success: true,
+            matchId: matchId,
+            data: data
+        });
+
+    } catch (err) {
+        // Ceci capturera les erreurs liées à l'initialisation du header x-mas ou à la requête finale.
+        console.error(`Erreur pour l'ID ${matchId}:`, err);
+        return res.status(500).json({ 
+            success: false,
+            message: "Erreur interne lors de la récupération des détails du match.",
+            details: err.message
+        });
+    }
 }

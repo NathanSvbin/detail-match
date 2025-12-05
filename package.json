@@ -1,16 +1,9 @@
 {
-  "name": "detail-match",
+"name": "footastique-functions",
   "version": "1.0.0",
-  "description": "",
+  "description": "Netlify Functions pour FootAstique",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.8" // Assurez-vous d'avoir 'axios' dans votre liste de dépendances
+    "axios": "^1.13.2"
   }
 }

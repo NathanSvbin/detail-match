@@ -1,16 +1,13 @@
 // Fichier : api/match.js
-// Endpoint d'API pour récupérer les détails d'un match (ex: /api/match?id=4772687)
-
 import Fotmob from "@max-xoo/fotmob";
 
-// Initialisation de la librairie Fotmob
+// Initialisation (peut causer des problèmes si elle est faite ici. 
+// Laisser ici est généralement correct, mais nous allons ajouter des vérifications.)
 const fotmob = new Fotmob();
 
 export default async function handler(request, response) {
-  // 1. Récupérer l'ID du match depuis le paramètre 'id' de l'URL
   const matchId = request.query.id;
 
-  // 2. Vérification de la présence de l'ID
   if (!matchId) {
     return response.status(400).json({
       success: false,
@@ -18,20 +15,28 @@ export default async function handler(request, response) {
     });
   }
 
+  // Vérification de la disponibilité de la librairie
+  if (!fotmob || typeof fotmob.getMatchDetails !== 'function') {
+      return response.status(500).json({
+          success: false,
+          message: "Erreur de configuration: La librairie Fotmob n'a pas été initialisée correctement."
+      });
+  }
+
   try {
-    // 3. Appel de la méthode getMatchDetails avec l'ID fourni
     console.log(`Tentative de récupération des détails pour le match ID: ${matchId}`);
+    
+    // Tentative d'appel à l'API externe
     const matchDetails = await fotmob.getMatchDetails(matchId);
 
-    // 4. Vérifier si les données sont vides ou si le match n'existe pas
     if (!matchDetails || Object.keys(matchDetails).length === 0) {
         return response.status(404).json({
             success: false,
-            message: `Match non trouvé pour l'ID: ${matchId}.`
+            message: `Match non trouvé ou données vides pour l'ID: ${matchId}.`
         });
     }
 
-    // 5. Répondre avec les données JSON
+    // Réponse réussie
     response.status(200).json({
       success: true,
       matchId: matchId,
@@ -40,12 +45,15 @@ export default async function handler(request, response) {
     });
 
   } catch (error) {
-    // 6. Gérer les erreurs API ou de connexion
-    console.error(`Erreur pour l'ID ${matchId}:`, error);
+    // Si l'erreur se produit ici, c'est que l'appel API a échoué.
+    console.error(`Erreur critique lors de l'appel pour l'ID ${matchId}:`, error);
+
+    // Retourner un message simple en cas d'erreur API externe pour éviter de crasher lors de la sérialisation
     response.status(500).json({
       success: false,
-      message: `Erreur interne lors de l'appel à l'API Fotmob pour l'ID ${matchId}.`,
-      error: error.message
+      message: "Erreur lors de la récupération des données de l'API externe. Vérifiez si l'ID est valide ou si l'API est accessible.",
+      // Fournir le message d'erreur si disponible, mais pas l'objet complet 'error'
+      details: error.message || 'Erreur inconnue'
     });
   }
 }

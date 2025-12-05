@@ -2,9 +2,7 @@
   "name": "detail-match",
   "version": "1.0.0",
   "description": "",
-  // 👇 AJOUTEZ CETTE LIGNE 👇
-  "type": "module", 
-  // 👆 AJOUTEZ CETTE LIGNE 👆
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,6 +11,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@max-xoo/fotmob": "^1.2.3"
+    "axios": "^1.6.8" // Assurez-vous d'avoir 'axios' dans votre liste de dépendances
   }
 }

@@ -1,5 +1,5 @@
 {
-"name": "footastique-functions",
+  "name": "footastique-functions",
   "version": "1.0.0",
   "description": "Netlify Functions pour FootAstique",
   "type": "module",

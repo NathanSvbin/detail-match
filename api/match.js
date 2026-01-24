@@ -1,12 +1,13 @@
+// Fichier : api/match.js
 import axios from "axios";
 
 // --- Configuration et Cache ---
 const FOTMOB_BASE_URL = "https://www.fotmob.com/api/";
 let xmasHeaderValue = undefined; 
 const cache = new Map();
-const CACHE_EXPIRATION_MS = 1 * 60 * 1000; // 1 minute pour les matchs en direct
+const CACHE_EXPIRATION_MS = 1 * 60 * 1000; // Cache de 1 minute (les scores changent vite !)
 
-// --- 1. Gestion du Token Dynamique ---
+// --- 1. Initialisation du Header x-mas ---
 async function ensureXmasHeader() {
     if (xmasHeaderValue) return;
     try {
@@ -15,7 +16,7 @@ async function ensureXmasHeader() {
         console.log("⚽ X-MAS Header sync success.");
     } catch (error) {
         console.error("❌ Failed to fetch x-mas header:", error.message);
-        xmasHeaderValue = "default-fallback";
+        xmasHeaderValue = "default-fallback"; 
     }
 }
 
@@ -39,14 +40,17 @@ axiosInstance.interceptors.request.use(async (config) => {
 async function fetchMatchDetails(matchId) {
     const urlPath = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
     
-    // Check Cache
+    // Vérification du Cache
     const cacheEntry = cache.get(urlPath);
     if (cacheEntry && Date.now() < cacheEntry.timestamp + CACHE_EXPIRATION_MS) {
+        console.log("💾 Serving match from cache:", matchId);
         return cacheEntry.data;
     }
     
+    // Requête API
     const response = await axiosInstance.get(urlPath);
     
+    // Mise en cache
     cache.set(urlPath, {
         data: response.data,
         timestamp: Date.now()
@@ -57,10 +61,9 @@ async function fetchMatchDetails(matchId) {
 
 // --- 4. Handler Vercel ---
 export default async function handler(req, res) {
-    // Gestion CORS
+    // Autoriser le CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-
+    
     const { id } = req.query;
 
     if (!id) {
@@ -69,17 +72,14 @@ export default async function handler(req, res) {
 
     try {
         const data = await fetchMatchDetails(id);
-
-        if (!data || Object.keys(data).length === 0) {
-            return res.status(404).json({ error: "Match non trouvé" });
-        }
-
-        return res.status(200).json(data);
-
+        
+        // Renvoie le JSON brut
+        res.status(200).json(data); 
+    
     } catch (error) {
-        console.error(`Erreur Match ID ${id}:`, error.message);
-        return res.status(500).json({ 
-            error: "Erreur serveur", 
+        console.error("API Error (Match):", error.response?.status || error.message);
+        res.status(error.response?.status || 500).json({ 
+            error: "Erreur lors de la récupération du match",
             details: error.message 
         });
     }

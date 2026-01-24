@@ -1,11 +1,10 @@
-// Fichier : api/match.js
 import axios from "axios";
 
 // --- Configuration et Cache ---
 const FOTMOB_BASE_URL = "https://www.fotmob.com/api/";
 let xmasHeaderValue = undefined; 
 const cache = new Map();
-const CACHE_EXPIRATION_MS = 1 * 60 * 1000; // Cache de 1 minute (les scores changent vite !)
+const CACHE_EXPIRATION_MS = 1 * 60 * 1000; // Cache de 1 minute pour les matchs
 
 // --- 1. Initialisation du Header x-mas ---
 async function ensureXmasHeader() {
@@ -16,7 +15,7 @@ async function ensureXmasHeader() {
         console.log("⚽ X-MAS Header sync success.");
     } catch (error) {
         console.error("❌ Failed to fetch x-mas header:", error.message);
-        xmasHeaderValue = "default-fallback"; 
+        xmasHeaderValue = "default-fallback";
     }
 }
 
@@ -36,21 +35,20 @@ axiosInstance.interceptors.request.use(async (config) => {
     return config;
 });
 
-// --- 3. Logique de récupération du Match ---
-async function fetchMatchDetails(matchId) {
+// --- 3. Logique de récupération du match ---
+async function fetchMatchData(matchId) {
     const urlPath = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
     
-    // Vérification du Cache
+    // Check Cache
     const cacheEntry = cache.get(urlPath);
     if (cacheEntry && Date.now() < cacheEntry.timestamp + CACHE_EXPIRATION_MS) {
-        console.log("💾 Serving match from cache:", matchId);
         return cacheEntry.data;
     }
     
-    // Requête API
+    // Request
     const response = await axiosInstance.get(urlPath);
     
-    // Mise en cache
+    // Save to Cache
     cache.set(urlPath, {
         data: response.data,
         timestamp: Date.now()
@@ -61,7 +59,6 @@ async function fetchMatchDetails(matchId) {
 
 // --- 4. Handler Vercel ---
 export default async function handler(req, res) {
-    // Autoriser le CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     const { id } = req.query;
@@ -71,15 +68,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        const data = await fetchMatchDetails(id);
-        
-        // Renvoie le JSON brut
+        const data = await fetchMatchData(id);
         res.status(200).json(data); 
     
     } catch (error) {
-        console.error("API Error (Match):", error.response?.status || error.message);
+        console.error("API Error:", error.response?.status || error.message);
         res.status(error.response?.status || 500).json({ 
-            error: "Erreur lors de la récupération du match",
+            error: "Erreur lors de la récupération des données",
             details: error.message 
         });
     }

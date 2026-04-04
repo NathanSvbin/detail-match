@@ -15,14 +15,9 @@ def get_match_details():
     time.sleep(random.uniform(0.5, 1.5))
 
     try:
-        session = tls_requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*'
-        })
-
-        res = session.get(
+        res = tls_requests.get(
             f"https://www.fotmob.com/api/data/matchDetails?matchId={match_id}&timeZone=Europe/Paris",
+            impersonate="chrome120",  # 👈 clé du contournement
             timeout=15
         )
         res.raise_for_status()

@@ -27,7 +27,7 @@ class FotMobMatchScraper:
             return response.json()
         except Exception as e:
             LOGGER(f"❌ Erreur critique pour le match {self.match_id}: {e}")
-            return {}
+            return {"debug_error": str(e)}  # 👈 retourne l'erreur au lieu de {}
 
 app = Flask(__name__)
 
@@ -44,9 +44,6 @@ def get_match_details():
     try:
         scraper = FotMobMatchScraper(match_id)
         json_data = scraper.fetch_match_details()
-
-        if not json_data:
-            return jsonify({"message": f"Échec de la récupération pour le match {match_id}."}), 404
 
         return jsonify(json_data), 200
 

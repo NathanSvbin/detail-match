@@ -37,53 +37,53 @@ const axiosInstance = axios.create({
     }
 });
 
-axiosInstance.interceptors.request.use((config) => {
-    config.headers["x-mas"] = generateXmasHeader();
+axiosInstance.interceptors.request.use(async (config) => {
+    await ensureXmasHeader();
+    config.headers["x-mas"] = xmasHeaderValue;
     return config;
 });
 
-// --- 3. Fetch du match ---
+// --- 3. Logique de récupération du match ---
 async function fetchMatchData(matchId) {
-    const cacheKey = `match_${matchId}`;
-
-    const cacheEntry = cache.get(cacheKey);
+    const urlPath = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
+    
+    // Check Cache
+    const cacheEntry = cache.get(urlPath);
     if (cacheEntry && Date.now() < cacheEntry.timestamp + CACHE_EXPIRATION_MS) {
-        console.log(`📦 Cache hit pour le match ${matchId}`);
         return cacheEntry.data;
     }
-
-    const urlPath = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
+    
+    // Request
     const response = await axiosInstance.get(urlPath);
-
-    cache.set(cacheKey, { data: response.data, timestamp: Date.now() });
+    
+    // Save to Cache
+    cache.set(urlPath, {
+        data: response.data,
+        timestamp: Date.now()
+    });
+    
     return response.data;
 }
 
 // --- 4. Handler Vercel ---
 export default async function handler(req, res) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
     const { id } = req.query;
 
     if (!id) {
-        return res.status(400).json({ error: "L'ID du match est requis (?id=4829558)" });
+        return res.status(400).json({ error: "L'ID du match est requis (?id=4772687)" });
     }
 
     try {
         const data = await fetchMatchData(id);
-        return res.status(200).json(data);
-
+        res.status(200).json(data); 
+    
     } catch (error) {
-        const status = error.response?.status;
-        console.error(`❌ Erreur API [${status || "N/A"}] pour matchId=${id}:`, error.message);
-
-        if (status === 404) {
-            return res.status(404).json({ error: "Match introuvable sur FotMob", matchId: id });
-        }
-
-        return res.status(status || 500).json({
+        console.error("API Error:", error.response?.status || error.message);
+        res.status(error.response?.status || 500).json({ 
             error: "Erreur lors de la récupération des données",
-            details: error.message
+            details: error.message 
         });
     }
 }

@@ -1,9 +1,8 @@
-import axios from "axios";
-import crypto from "crypto";
+import crypto from "node:crypto";
 
-const FOTMOB_BASE_URL = "https://www.fotmob.com/api/";
-const CACHE_MS = 60 * 1000;
-const cache = new Map();
+export const config = {
+    runtime: "edge"
+};
 
 function generateXmasHeader() {
     const now = new Date();
@@ -13,39 +12,52 @@ function generateXmasHeader() {
     return `${dateStr}:${hash}`;
 }
 
-const fotmob = axios.create({
-    baseURL: FOTMOB_BASE_URL,
-    timeout: 10000,
-    headers: {
-        "Accept": "application/json",
-        "Referer": "https://www.fotmob.com/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+export default async function handler(req) {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+        return new Response(JSON.stringify({ error: "Paramètre manquant : ?id=4829558" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
     }
-});
-
-async function fetchMatchData(matchId) {
-    const cached = cache.get(matchId);
-    if (cached && Date.now() < cached.expiry) return cached.data;
-
-    const url = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
-    const response = await fotmob.get(url, { headers: { "x-mas": generateXmasHeader() } });
-
-    cache.set(matchId, { data: response.data, expiry: Date.now() + CACHE_MS });
-    return response.data;
-}
-
-export default async function handler(req, res) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Paramètre manquant : ?id=4829558" });
 
     try {
-        const data = await fetchMatchData(id);
-        return res.status(200).json(data);
+        const fotmobRes = await fetch(
+            `https://www.fotmob.com/api/matchDetails?matchId=${id}&timeZone=Europe/Paris`,
+            {
+                headers: {
+                    "x-mas": generateXmasHeader(),
+                    "Accept": "application/json",
+                    "Referer": "https://www.fotmob.com/",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+            }
+        );
+
+        if (!fotmobRes.ok) {
+            return new Response(JSON.stringify({ error: `FotMob error: ${fotmobRes.status}`, matchId: id }), {
+                status: fotmobRes.status,
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+        }
+
+        const data = await fotmobRes.text();
+
+        return new Response(data, {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "s-maxage=60"
+            }
+        });
+
     } catch (error) {
-        const status = error.response?.status;
-        console.error(`❌ [${status ?? "ERR"}] matchId=${id} →`, error.message);
-        return res.status(status ?? 500).json({ error: error.message });
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
     }
 }

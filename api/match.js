@@ -37,24 +37,31 @@ axiosInstance.interceptors.request.use(async (config) => {
 
 // --- 3. Logique de récupération du match ---
 async function fetchMatchData(matchId) {
-    const urlPath = `matchDetails?matchId=${matchId}&timeZone=Europe/Paris`;
-    
-    // Check Cache
+    const urlPath = `matchDetails?matchId=${matchId}&timezone=Europe/Paris`;
+
     const cacheEntry = cache.get(urlPath);
     if (cacheEntry && Date.now() < cacheEntry.timestamp + CACHE_EXPIRATION_MS) {
         return cacheEntry.data;
     }
-    
-    // Request
-    const response = await axiosInstance.get(urlPath);
-    
-    // Save to Cache
-    cache.set(urlPath, {
-        data: response.data,
-        timestamp: Date.now()
-    });
-    
-    return response.data;
+
+    try {
+        const response = await axiosInstance.get(urlPath);
+
+        cache.set(urlPath, {
+            data: response.data,
+            timestamp: Date.now()
+        });
+
+        return response.data;
+
+    } catch (error) {
+        console.error("❌ FotMob error:");
+        console.error("URL:", FOTMOB_BASE_URL + urlPath);
+        console.error("Status:", error.response?.status);
+        console.error("Response:", error.response?.data);
+
+        throw error;
+    }
 }
 
 // --- 4. Handler Vercel ---
